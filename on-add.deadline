@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+import json
+import sys
+from datetime import datetime, timezone
+
+
+def parse_due(value):
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value)
+    if isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if dt.tzinfo is None:
+            return dt
+        return dt.astimezone()
+    return None
+
+
+lines = [line for line in sys.stdin.read().splitlines() if line.strip()]
+if not lines:
+    sys.exit(0)
+
+try:
+    task = json.loads(lines[-1])
+except json.JSONDecodeError:
+    print(lines[-1])
+    sys.exit(0)
+
+dt = parse_due(task.get("due"))
+if dt and (dt.hour, dt.minute, dt.second) == (0, 0, 0):
+    eod = dt.replace(hour=23, minute=59, second=59)
+    if isinstance(task["due"], str):
+        task["due"] = eod.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    else:
+        task["due"] = int(eod.timestamp())
+
+print(json.dumps(task))
