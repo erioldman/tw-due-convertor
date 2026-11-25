@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+import json
+import sys
+
+
+lines = [line for line in sys.stdin.read().splitlines() if line.strip()]
+if not lines:
+    sys.exit(0)
+
+try:
+    task = json.loads(lines[-1])
+    original = json.loads(lines[0]) if len(lines) > 1 else {}
+except json.JSONDecodeError:
+    print(lines[-1])
+    sys.exit(0)
+
+had_inbox = "inbox" in (original.get("tags") or [])
+has_inbox = "inbox" in (task.get("tags") or [])
+
+if has_inbox and not had_inbox and not task.get("wait"):
+    task["wait"] = "later"
+elif had_inbox and not has_inbox:
+    task.pop("wait", None)
+
+print(json.dumps(task))
