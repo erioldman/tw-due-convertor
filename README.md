@@ -1,11 +1,12 @@
 # tw-hooks
 
-A collection of Taskwarrior hooks I use. Each hook lives in its own directory with its `on-add` script and the `on-modify` symlink that makes it fire on both add and modify.
+A collection of Taskwarrior hooks I use. Each hook lives in its own directory; most pair an `on-add` script with an `on-modify` symlink so they fire on both add and modify, while `inbox-triage` is a single `on-modify` script.
 
 | Hook        | What it does |
 |-------------|--------------|
 | [deadline](#deadline)   | Turns date-only due dates into true end-of-day deadlines |
 | [inbox-wait](#inbox-wait) | Tasks gaining `+inbox` start waiting until triaged |
+| [inbox-triage](#inbox-triage) | Modifying an inbox task triages it — drops `+inbox` and its `wait` |
 
 ## Requirements
 
@@ -141,4 +142,63 @@ Note: removing the hook does not clear `wait:later` from tasks already tagged �
 
 ```sh
 rm ~/.config/task/hooks/on-add.inbox-wait ~/.config/task/hooks/on-modify.inbox-wait
+```
+
+## inbox-triage
+
+An inbox task should stay untouched until you triage it — but nothing stops a stray `task 1 modify due:tomorrow` from editing it in place while it keeps sitting in the inbox. This hook treats *any* modification of a task that already has `+inbox` as triage: the edit goes through, and `+inbox` plus the auto-assigned `wait` come off in the same stroke. It fires on `on-modify` only — adding a task can't be triage, and `task add … +inbox` must keep the tag.
+
+### Example
+
+```
+$ task add Check mail +inbox          # inbox-wait sets wait:later
+$ task 1 export | jq -c '{tags, wait}'
+{"tags":["inbox"],"wait":"later"}
+$ task 1 modify project:home
+$ task 1 export | jq -c '{tags, wait}'
+{"tags":null,"wait":null}
+```
+
+### Install
+
+```sh
+git clone https://github.com/erioldman/tw-hooks.git
+cd tw-hooks
+install -m 755 inbox-triage/on-modify.inbox-triage ~/.config/task/hooks/
+```
+
+Or without git:
+
+```sh
+mkdir -p ~/.config/task/hooks
+curl -fsSL https://raw.githubusercontent.com/erioldman/tw-hooks/main/inbox-triage/on-modify.inbox-triage \
+  -o ~/.config/task/hooks/on-modify.inbox-triage
+chmod +x ~/.config/task/hooks/on-modify.inbox-triage
+```
+
+No symlink needed — unlike the other hooks, this one must not fire on `on-add`.
+
+### What it does
+
+Fires on `on-modify` only. Taskwarrior hands it the original and the modified task; when **both** carry `+inbox`, the edit was something other than tagging the task into the inbox, so the hook strips the tag and removes `wait`:
+
+| change                       | result                                              |
+|------------------------------|-----------------------------------------------------|
+| task had `+inbox` before and after | `+inbox` and `wait` removed                   |
+| task gains `+inbox`          | untouched — [inbox-wait](#inbox-wait) adds `wait`   |
+| task loses `+inbox`          | untouched — [inbox-wait](#inbox-wait) clears `wait` |
+| task without `+inbox`        | untouched                                           |
+
+Because `done`, `delete`, `start`, `stop`, `annotate`, and `edit` all fire `on-modify`, completing, deleting, or starting an inbox task counts as triage too. So does setting an explicit `wait`: an inbox task cannot be deferred, only triaged.
+
+### How it works
+
+Same contract as the other hooks: reads the task JSON lines from stdin and prints the task that should be saved. The `had +inbox` / `has +inbox` comparison (original line vs. modified line) is what keeps `task add … +inbox` and `task 1 modify +inbox` from tripping it — the tag must already be there for the hook to act.
+
+It runs before `inbox-wait` alphabetically; when both are installed, `inbox-wait` then sees a task without `+inbox` and re-confirms the `wait` removal, so the pair is idempotent.
+
+### Removing
+
+```sh
+rm ~/.config/task/hooks/on-modify.inbox-triage
 ```

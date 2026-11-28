@@ -4,6 +4,12 @@ All notable changes to this Taskwarrior hook collection will be documented in th
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-11-28
+
+### Added
+
+- `inbox-triage` hook: modifying a task that already has `+inbox` removes the tag and its `wait` in the same stroke — touching an inbox task counts as triaging it. `on-modify` only; gaining or losing `+inbox` stays with `inbox-wait`.
+
 ## [0.1.0] - 2026-11-25
 
 ### Added
